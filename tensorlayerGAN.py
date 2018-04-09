@@ -1,5 +1,9 @@
-'''Source
-https://wiseodd.github.io/techblog/2016/09/17/gan-tensorflow/'''
+from __future__ import print_function
+
+# Import MNIST data
+from tensorflow.examples.tutorials.mnist import input_data
+mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+
 import tensorflow as tf
 import tensorlayer as tl
 import numpy as np
@@ -16,85 +20,66 @@ class discriminator:
 
     def createGenerator(self,inputSize,convolutions,fullyconnected,output):
         # Generator Net
-        self.Z = tf.placeholder(tf.float32, shape=[None, 100], name='Z')
+        self.Z = tf.placeholder(tf.float32, shape=[None, inputSize], name='Z')
+        numPools = sum([1 if i < 0 for i in convoltions])
+        xs, ys = output[0]/(2^numPools),output[1]/(2^numPools)
+        sizeDeconv = xs * ys * convoltions[0]
 
-        G_W1 = tf.Variable(xavier_init([100, 128]), name='G_W1')
-        G_b1 = tf.Variable(tf.zeros(shape=[128]), name='G_b1')
+        fcG = DenseLayer(self.Z, fullyconnected, act = tf.nn.relu, name = 'fc2')
+        deconveInputFlat = DenseLayer(fcG, sizeDeconv, act = tf.nn.relu, name = 'fdeconv')
+        deconveInput = ReshapeLayer(deconveInputFlat, (-1, xs, ys, convoltions[0]), name = 'unflatten')
 
-        G_W2 = tf.Variable(xavier_init([128, 784]), name='G_W2')
-        G_b2 = tf.Variable(tf.zeros(shape=[784]), name='G_b2')
+        conv3 = Conv2d(shape3, 8, (3, 3), act=tf.nn.relu, name='conv3_2')
+        up2 = DeConv2d(conv3, 8, (3, 3), (nx/2, ny/2), (2, 2), name='deconv2')
+        convoltions.append(1)
+        convVals = [deconveInput]
 
-        theta_G = [G_W1, G_W2, G_b1, G_b2]
-        def generator():
-            G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1)
-            G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
-            G_prob = tf.nn.sigmoid(G_log_prob)
-
-            return G_prob
-
-        convVals = []
-        convWeights = []
-        convBias = []
         for i,v in enumerate(convoltions):
-            if i > 1:#if it is negative, that means we pool on this step
-                pool=False
-                if self.convolutions[i+1] < 0:
-                    self.convolutions[i+1] *= -1
-                    pool = True
-                convWeights.append(weight_variable([5, 5, self.convolutions[i], self.convolutions[i+1]]))
-                convBias.append(bias_variable([self.convolutions[i+1]]))
-                h_conv1 = tf.nn.relu(conv2d(convVals[i], convWeights[i]) + convBias[i])
-                if pool:
-                    convVals.append(max_pool_2x2(h_conv1))
-                else:
-                    convVals.append(h_conv1)
-            else:
-                W_fc1 = weight_variable([inputSize, fullyconnected])
-                b_fc1 = bias_variable([fullyconnected])
-                h_fc1 = tf.nn.relu(tf.matmul(self.Z, W_fc1) + b_fc1)
+            if i < len(convoltions)-1:
+                if convolutions[i] < 0:
+                    convolutions[i] *= -1
+                    xs *= 2
+                    ys *= 2
+                convVals.append(DeConv2d(convVals[i],convoltions[i+1], (5, 5), (xs,ys), (2, 2), name='deconv%s'%(i)))
 
-                W_fc2 = weight_variable([fullyconnected, output])
-                b_fc2 = bias_variable([output])
-                self.y_conv = tf.matmul(h_fc1, W_fc2) + b_fc2
+        self.genOutput = convVals[-1]
+
+
 
     def createDiscriminator(self):
         flatSize = inputSize[0]*inputSize[1]*inputSize[2]
         self.x = tf.placeholder(tf.float32, shape=[None, flatSize])
         x_image = tf.reshape(x, [-1,inputSize[0],inputSize[1],inputSize[2]])
+        X_255 = tf.image.convert_image_dtype (x_image, dtype=tf.uint8)
+        #X_t = tf.transpose (X_255, [3, 0, 1, 2])
+        tf.summary.image('input', X_255, max_outputs = 3)
+        inputs = InputLayer(x_image, name='disc_inputs')
         self.y_ = tf.placeholder(tf.float32, shape=[None, output])
-        convVals = [x_image]
-        convWeights = []
-        convBias = []
+        convVals = [inputs]
         for i,v in enumerate(convoltions):
             if i < len(convoltions)-1:#if it is negative, that means we pool on this step
                 pool=False
                 if self.convolutions[i+1] < 0:
                     self.convolutions[i+1] *= -1
                     pool = True
-                convWeights.append(weight_variable([5, 5, self.convolutions[i], self.convolutions[i+1]]))
-                convBias.append(bias_variable([self.convolutions[i+1]]))
-                h_conv1 = tf.nn.relu(conv2d(convVals[i], convWeights[i]) + convBias[i])
+                with tf.variable_scope("u_net", reuse=None):
+                    conv1 = Conv2d(inputs, self.convolutions[i+1], (5, 5), act=tf.nn.relu, name='conv1_%s'%(i))
                 if pool:
-                    convVals.append(max_pool_2x2(h_conv1))
+                    convVals.append(MaxPool2d(conv1, (2, 2), name='pool%s'%(i)))
                 else:
-                    convVals.append(h_conv1)
+                    convVals.append(conv1)
             else:
                 _,l,w,d = convVals[-1].shape
-                W_fc1 = weight_variable([l*w*d, fullyconnected])
-                b_fc1 = bias_variable([fullyconnected])
-                h_pool2_flat = tf.reshape(convVals[-1], [-1, l*w*d])
-                h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
-                self.keep_prob = tf.placeholder(tf.float32)
-                h_fc1_drop = tf.nn.dropout(h_fc1, self.keep_prob)
-                W_fc2 = weight_variable([fullyconnected, output])
-                b_fc2 = bias_variable([output])
-                self.y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
+                flat3 = FlattenLayer(convVals[-1], name = 'flatten')
+                hid3 = DenseLayer(flat3, fullyconnected, act = tf.nn.relu, name = 'fcl')
+                self.y_conv = DenseLayer(hid, output, act = tf.nn.relu, name = 'hidden_encode')
 
-            cross_entropy = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.y_conv))
-            self.train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-            correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
-            self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+        cross_entropy = tf.reduce_mean(
+            tf.nn.softmax_cross_entropy_with_logits(labels=self.y_, logits=self.y_conv))
+        self.train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+        correct_prediction = tf.equal(tf.argmax(y_conv,1), tf.argmax(y_,1))
+        self.accuracy = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+        tf.summary.scalar("loss", cross_entropy);
 
 
     def train(iterations,batch = 50):
@@ -110,30 +95,20 @@ class discriminator:
             self.x: mnist.test.images, self.y_: mnist.test.labels, self.keep_prob: 1.0}))
 
 
-    def weight_variable(shape):
-      initial = tf.truncated_normal(shape, stddev=0.1)
-      return tf.Variable(initial)
 
-    def deconv2d(x,W,upPool):
-        return tf.nn.conv2d_transpose(
-    value=x,
-    filter=w,
-    output_shape=,
-    padding='SAME',
-)
-        )
-
-    def bias_variable(shape):
-      initial = tf.constant(0.1, shape=shape)
-      return tf.Variable(initial)
-
-    def conv2d(x, W):
-      return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
-
-    def max_pool_2x2(x):
-      return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
-                            strides=[1, 2, 2, 1], padding='SAME')
+    def variable_summaries(var):
+      """Attach a lot of summaries to a Tensor (for TensorBoard visualization)."""
+      with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean', mean)
+        with tf.name_scope('stddev'):
+          stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev', stddev)
+        tf.summary.scalar('max', tf.reduce_max(var))
+        tf.summary.scalar('min', tf.reduce_min(var))
+        tf.summary.histogram('histogram', var)
 
 
-merged = tf.summary.merge_all()
-sum_writer = tf.summary.FileWriter("logs2", sess.graph)
+
+    merged = tf.summary.merge_all()
+    sum_writer = tf.summary.FileWriter("logs2", sess.graph)
