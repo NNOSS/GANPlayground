@@ -171,5 +171,5 @@ class discriminator:
         merged = tf.summary.merge_all()
         sum_writer = tf.summary.FileWriter("logs2", sess.graph)
 
-myDiscriminator = discriminator(inputSize = [28,28,1],convolutions = [-16,-32], fullyconnected = 512, output = 2, fileName = './Model/model.ckpt',restore = True)
+myDiscriminator = discriminator(inputSize = [28,28,1],convolutions = [-16,-32], fullyconnected = 512, output = 2, fileName = './../GANModel/model.ckpt',restore = True)
 myDiscriminator.train(10000)
