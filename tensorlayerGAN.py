@@ -12,13 +12,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class discriminator:
-    def __init__(self,inputSize,convolutions,fullyconnected,output):
+    def __init__(self,inputSize,convolutions,fullyconnected,output,restore = False,fileName =None):
         self.inputSize = inputSize
         self.convolutions= [1] + convolutions
         self.fullyconnected = fullyconnected
         self.output = output
         self.Zsize =30
+        self.fileName = fileName
         self.sess = tf.InteractiveSession()
+
         self.Z = tf.placeholder(tf.float32, shape=[None, self.Zsize], name='Z')
         self.y_ = tf.placeholder(tf.float32, shape=[None, output])
         self.fake_y_ =tf.placeholder(tf.float32, shape=[None, output])
@@ -45,7 +47,12 @@ class discriminator:
             tf.nn.softmax_cross_entropy_with_logits(labels=self.gen_y_, logits=self.fake_y_conv))
         self.gen_train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
+        self.saver = tf.train.Saver()
+        if fileName is not None and restore:
+            self.saver.restore(self.sess, self.fileName)
         self.sess.run(tf.global_variables_initializer())
+        self.saver.save(self.sess, self.fileName)
+
 
     def createGenerator(self,Z, inputSize,convolutions,fullyconnected,output):
         # Generator Net
@@ -122,7 +129,11 @@ class discriminator:
                 train_accuracy = self.accuracy.eval(feed_dict={
                     self.x:batch[0], self.y_: batch[1]})
                 print("step %d, training accuracy %g"%(i, train_accuracy))
-                if i % 1000 ==0:
+
+                # saver.save(sess, './Model2/Mnist-Encoding', global_step=save_step, write_meta_graph=False)
+                if i % 200 ==0:
+                    if self.fileName is not None:
+                        self.saver.save(self.sess, self.fileName)
                     image = self.sess.run(self.fake_input, feed_dict={self.Z : zt})
                     image = np.reshape(image[6], [28,28])
                     # print(image)
@@ -157,5 +168,5 @@ class discriminator:
         merged = tf.summary.merge_all()
         sum_writer = tf.summary.FileWriter("logs2", sess.graph)
 
-myDiscriminator = discriminator(inputSize = [28,28,1],convolutions = [-16,-32], fullyconnected = 512, output = 2)
+myDiscriminator = discriminator(inputSize = [28,28,1],convolutions = [-16,-32], fullyconnected = 512, output = 2, fileName = './Model/model.ckpt',restore = True)
 myDiscriminator.train(10000)
