@@ -137,11 +137,11 @@ class discriminator:
                 if i % 1000 ==0:
                     if self.fileName is not None:
                         self.saver.save(self.sess, self.fileName)
-                    image = self.sess.run(self.fake_input, feed_dict={self.Z : zt})
-                    image = np.reshape(image[6], [28,28])
-                    print(image)
-                    plot = plt.imshow(image)
-                    plt.show()
+                    # image = self.sess.run(self.fake_input, feed_dict={self.Z : zt})
+                    # image = np.reshape(image[6], [28,28])
+                    # print(image)
+                    # plot = plt.imshow(image)
+                    # plt.show()
 
             z = np.random.normal(loc= .5, scale = .5, size = [batchLen,self.Zsize])
             fake_batch = np.concatenate((np.ones((batchLen,1)),np.zeros((batchLen,1))), axis = 1)
