@@ -98,7 +98,7 @@ class discriminator:
                 if i < len(convolutions)-1:
                     class_image = tf.tile(tf.expand_dims(tf.expand_dims(classes,1),1), (1,xs,ys,1))
                     if i == 0:
-                        self.classTest = tf.summary.image("tiled",  tf.reshape(class_image, [-1,xs,ys,1]))
+                        self.classImage = tf.summary.image("classImage",tf.slice(class_image,[0,0,0,0],[10,xs,ys,1]))
                     # tf.reshape(tf.ones((xs,ys,self.numClasses)), (-1,xs,ys,self.numClasses)
                     class_image = InputLayer(class_image, name='gen_class_inputs_%i'%(i))
                     # class_image = ReshapeLayer(class_image, (-1, xs, ys, self.numClasses), name = 'class_unflatten%i'%(i))
@@ -219,11 +219,11 @@ class discriminator:
             feed_dict={self.x: batch[0], self.y_: batch[2],self.Z: z, self.fake_y_: fake_batch, self.classes: batch[1]})
             self.train_writer.add_summary(d_cross_entropy_summary, i)
             self.train_writer.add_summary(real_input_summary, i+3)
-            gen_train, fake_input_summary,gen_cross_entropy_summary, classTest= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary, self.classTest],
+            gen_train, fake_input_summary,gen_cross_entropy_summary, classImage= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary, self.classImage],
             feed_dict={self.Z: z, self.gen_y_: batch[2], self.classes: batch[1]})
             self.train_writer.add_summary(fake_input_summary, i+1)
             self.train_writer.add_summary(gen_cross_entropy_summary, i+2)
-            self.train_writer.add_summary(classTest, i+2)
+            self.train_writer.add_summary(classImage, i+2)
         # print("test accuracy %g"%self.accuracy.eval(feed_dict={
         #     self.x: mnist.test.images, self.y_: mnist.test.labels}))
 
