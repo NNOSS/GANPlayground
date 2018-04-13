@@ -97,6 +97,8 @@ class discriminator:
             for i,v in enumerate(convolutions):
                 if i < len(convolutions)-1:
                     class_image = tf.tile(tf.expand_dims(tf.expand_dims(classes,1),1), (1,xs,ys,1))
+                    if i == 0:
+                        self.classTest = tf.summary.image("tiled",  tf.reshape(class_image, [-1,xs,ys,1]))
                     # tf.reshape(tf.ones((xs,ys,self.numClasses)), (-1,xs,ys,self.numClasses)
                     class_image = InputLayer(class_image, name='gen_class_inputs_%i'%(i))
                     # class_image = ReshapeLayer(class_image, (-1, xs, ys, self.numClasses), name = 'class_unflatten%i'%(i))
@@ -111,10 +113,10 @@ class discriminator:
                     # x0,x1,x2,x3 = convVals[-1].output.shape
                     # print(x0,x1,x2,x3)
 
-
-                    convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
+                    if i < len(convolutions)-2:
+                        convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
                     if i == len(convolutions)-2:
-                        convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.tanh,name='gne_fake_input'))
+                        convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.tanh,name='gen_fake_input'))
 
                     else:
                         convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.relu,name='gen_deconv%i'%(i)))
@@ -167,7 +169,7 @@ class discriminator:
                     y_conv = DenseLayer(concat2, output, act = tf.nn.relu, name = 'd_hidden_encode').outputs
 
 
-            return tf.nn.softmax(y_conv)
+            return y_conv
 
     def train(self,iterations,batchLen = 20):
         random_classes = np.random.randint(0, self.numClasses, size = [batchLen])
@@ -217,10 +219,11 @@ class discriminator:
             feed_dict={self.x: batch[0], self.y_: batch[2],self.Z: z, self.fake_y_: fake_batch, self.classes: batch[1]})
             self.train_writer.add_summary(d_cross_entropy_summary, i)
             self.train_writer.add_summary(real_input_summary, i+3)
-            gen_train, fake_input_summary,gen_cross_entropy_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary],
+            gen_train, fake_input_summary,gen_cross_entropy_summary, classTest= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary, self.classTest],
             feed_dict={self.Z: z, self.gen_y_: batch[2], self.classes: batch[1]})
             self.train_writer.add_summary(fake_input_summary, i+1)
             self.train_writer.add_summary(gen_cross_entropy_summary, i+2)
+            self.train_writer.add_summary(classTest, i+2)
         # print("test accuracy %g"%self.accuracy.eval(feed_dict={
         #     self.x: mnist.test.images, self.y_: mnist.test.labels}))
 
