@@ -167,9 +167,9 @@ class discriminator:
                     y_conv = DenseLayer(concat2, output, act = tf.nn.relu, name = 'd_hidden_encode').outputs
 
 
-            return y_conv
+            return tf.nn.softmax(y_conv)
 
-    def train(self,iterations,batchLen = 60):
+    def train(self,iterations,batchLen = 20):
         random_classes = np.random.randint(0, self.numClasses, size = [batchLen])
         print(random_classes[0])
         positions = np.arange(batchLen)
@@ -177,7 +177,7 @@ class discriminator:
         onehot[positions, random_classes] = 1
         # zt = np.concatenate((np.random.normal(loc= .5, scale = .5, size = [batchLen,self.Zsize]),
         # onehot),axis = 1)
-        zt = np.random.normal(loc= .5, scale = .5, size = [batchLen,self.Zsize])
+        zt = np.random.normal(loc= 0, scale = 1, size = [batchLen,self.Zsize])
         classes = onehot
         fake_batch = np.concatenate((np.ones((batchLen,1)),np.zeros((batchLen,1))), axis = 1)
         newBatch = np.concatenate((np.zeros((batchLen,1)),np.ones((batchLen,1))), axis = 1)
@@ -187,7 +187,7 @@ class discriminator:
             batch = batch[0],batch[1],newBatch
 
             # z = np.concatenate((np.random.normal(loc= .5, scale = .5, size = [batchLen,self.Zsize]),batch[2]),axis = 1)
-            z = np.random.normal(loc= .5, scale = .5, size = [batchLen,self.Zsize])
+            z = np.random.normal(loc= 0, scale = 1, size = [batchLen,self.Zsize])
 
             # print(fake_batch.shape)
             if i%200 == 0:
