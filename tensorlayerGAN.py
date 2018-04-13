@@ -24,7 +24,7 @@ class discriminator:
         self.Zsize =30
         self.numClasses =10
         self.fileName = fileName
-        self.sess = tf.InteractiveSession()
+        self.sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
         self.Z = tf.placeholder(tf.float32, shape=[None, self.Zsize], name='Z')
         self.classes = tf.placeholder(tf.float32, shape=[None, self.numClasses], name='class_inputs')
@@ -34,7 +34,7 @@ class discriminator:
         self.x = tf.placeholder(tf.float32, shape=[None, inputSize[0]*inputSize[1]*inputSize[2]], name = 'true_input')
         self.y_conv = self.createDiscriminator(self.x,self.classes,inputSize,self.convolutions,fullyconnected,output)
         self.convolutions = [1] + convolutions
-        self.fake_input = self.createGenerator(Z = self.Z, classes = self.classes,inputSize = self.Zsize, convolutions= [32, 32, 32, 32],fullyconnected = None, output = [28, 28, 1])
+        self.fake_input = self.createGenerator(Z = self.Z, classes = self.classes,inputSize = self.Zsize, convolutions= [-32, 64],fullyconnected = None, output = [28, 28, 1])
         self.fake_y_conv = self.createDiscriminator(self.fake_input,self.classes,inputSize,self.convolutions,fullyconnected,output,reuse = True)
         self.fake_input_summary = tf.summary.image("fake_inputs", tf.reshape(self.fake_input, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 6)
         self.real_input_summary = tf.summary.image("real_inputs", tf.reshape(self.x, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 6)
@@ -52,7 +52,7 @@ class discriminator:
                 tf.nn.softmax_cross_entropy_with_logits(labels=self.fake_y_, logits=self.fake_y_conv))
         self.d_cross_entropy_summary = tf.summary.scalar('d_loss',self.d_cross_entropy)
 
-        self.train_step = tf.train.AdamOptimizer(2e-4,beta1=.5).minimize(self.d_cross_entropy, var_list = self.d_vars)
+        self.train_step = tf.train.AdamOptimizer(2e-4,beta1=.9).minimize(self.d_cross_entropy, var_list = self.d_vars)
         self.accuracy_real = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(self.y_conv,1), tf.argmax(self.y_,1)), tf.float32))
         self.accuracy_fake = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(self.fake_y_conv,1), tf.argmax(self.fake_y_,1)), tf.float32))
         self.accuracy_summary_real = tf.summary.scalar('accuracy_real',self.accuracy_real)
@@ -60,7 +60,7 @@ class discriminator:
 
         self.gen_cross_entropy = tf.reduce_mean(
             tf.nn.softmax_cross_entropy_with_logits(labels=self.gen_y_, logits=self.fake_y_conv))
-        self.gen_train_step = tf.train.AdamOptimizer(2e-4,beta1=.5).minimize(self.gen_cross_entropy,var_list = self.gen_vars)
+        self.gen_train_step = tf.train.AdamOptimizer(2e-4,beta1=.9).minimize(self.gen_cross_entropy,var_list = self.gen_vars)
         self.gen_cross_entropy_summary = tf.summary.scalar('g_loss',self.gen_cross_entropy)
         self.saver = tf.train.Saver()
         self.sess.run(tf.global_variables_initializer())
@@ -114,7 +114,7 @@ class discriminator:
 
                     convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
                     if i == len(convolutions)-2:
-                        convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.tanh,name='fake_input'))
+                        convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.tanh,name='gne_fake_input'))
 
                     else:
                         convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.relu,name='gen_deconv%i'%(i)))
@@ -229,11 +229,6 @@ class discriminator:
 
         return batch
 
-def conv_cond_concat(x, y):
-    """
-    concatenate conditioning vector on feature map axis
-    """
-    return T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], self.numClasses))], axis=3)
 
 myDiscriminator = discriminator(inputSize = [28,28,1],convolutions = [-32,-64], fullyconnected = 128, output = 2, fileName = model_filepath,restore = restore)
 myDiscriminator.train(100000)
