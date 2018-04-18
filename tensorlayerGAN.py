@@ -12,11 +12,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 restore = True
-# model_filepath = './../GANModelDeep/model.ckpt'
-# summary_filepath = './../GANModelDeep/Summaries/'
+model_filepath = './../GANModelDeep/model.ckpt'
+summary_filepath = './../GANModelDeep/Summaries/'
 
-model_filepath = './../thisworks/model.ckpt'
-summary_filepath = './../thisworks/Summaries/'
+# model_filepath = './../thisworks/model.ckpt'
+# summary_filepath = './../thisworks/Summaries/'
 
 class discriminator:
     def __init__(self,inputSize,convolutions,fullyconnected,output,restore = False,fileName =None):
@@ -114,7 +114,7 @@ class discriminator:
                     # x0,x1,x2,x3 = convVals[-1].output.shape
                     # print(x0,x1,x2,x3)
 
-                    if i < len(convolutions)-1:
+                    if i < len(convolutions)-2:
                         convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
                     if i == len(convolutions)-2:
                         convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride, act=tf.nn.tanh,name='gen_fake_input'))
