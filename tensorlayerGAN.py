@@ -12,8 +12,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 restore = True
-model_filepath = './../GANModelDeep/model.ckpt'
-summary_filepath = './../GANModelDeep/Summaries/'
+# model_filepath = './../GANModelDeep/model.ckpt'
+# summary_filepath = './../GANModelDeep/Summaries/'
+
+model_filepath = './../thisworks/model.ckpt'
+summary_filepath = './../thisworks/Summaries/'
 
 class discriminator:
     def __init__(self,inputSize,convolutions,fullyconnected,output,restore = False,fileName =None):
