@@ -219,10 +219,10 @@ class discriminator:
             train, real_input_summary, d_cross_entropy_summary= self.sess.run([self.train_step,self.real_input_summary,self.d_cross_entropy_summary],
             feed_dict={self.x: batch[0], self.y_: batch[2],self.Z: z, self.fake_y_: fake_batch, self.classes: batch[1]})
             self.train_writer.add_summary(d_cross_entropy_summary, i)
-            self.train_writer.add_summary(real_input_summary, i+3)
+            if i % 50: self.train_writer.add_summary(real_input_summary, i+3)
             gen_train, fake_input_summary,gen_cross_entropy_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary],
             feed_dict={self.Z: z, self.gen_y_: batch[2], self.classes: batch[1]})
-            self.train_writer.add_summary(fake_input_summary, i+1)
+            if i % 50: self.train_writer.add_summary(fake_input_summary, i+1)
             self.train_writer.add_summary(gen_cross_entropy_summary, i+2)
         # print("test accuracy %g"%self.accuracy.eval(feed_dict={
         #     self.x: mnist.test.images, self.y_: mnist.test.labels}))
