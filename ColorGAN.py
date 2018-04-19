@@ -102,9 +102,9 @@ class discriminator:
             sizeDeconv = xs * ys * abs(convolutions[0])
 
             if fullyconnected is not None:
-                concatz = DenseLayer(concatz, fullyconnected, act = tf.nn.relu, name = 'gen_fc')
+                concatz = DenseLayer(concatz, fullyconnected, act = tf.nn.leaky_relu, name = 'gen_fc')
 
-            deconveInputFlat = DenseLayer(concatz, sizeDeconv, act = tf.nn.relu, name = 'gen_fdeconv')#dense layer to input to be reshaped
+            deconveInputFlat = DenseLayer(concatz, sizeDeconv, act = tf.nn.leaky_relu, name = 'gen_fdeconv')#dense layer to input to be reshaped
             deconveInput = ReshapeLayer(deconveInputFlat, (-1, xs, ys, abs(convolutions[0])), name = 'gen_unflatten')
 
             convolutions.append(self.inputSize[2])
@@ -124,12 +124,12 @@ class discriminator:
                     else:
                         stride = (1,1)
 
-                    if i < len(convolutions)-2:#decide when to add the tiles
+                    if i < len(convolutions)-1:#decide when to add the tiles
                         convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
-                    if i == len(convolutions)-2:#if on the last step, use tanh instead of relu
-                        convVals.append(BatchNormLayer(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride,name='gen_fake_input'),act =tf.nn.tanh,is_train=True,name='gen_batch_norm%i'%(i)))
+                    if i == len(convolutions)-2:#if on the last step, use tanh instead of leaky_relu
+                        convVals.append(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride,name='gen_fake_input',act =tf.nn.tanh))
                     else:
-                        convVals.append(BatchNormLayer(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride,name='gen_deconv%i'%(i)),act =tf.nn.relu,is_train=True,name='gen_batch_norm%i'%(i)))
+                        convVals.append(BatchNormLayer(DeConv2d(convVals[-1],abs(convolutions[i+1]), (5, 5), (xs,ys), stride,name='gen_deconv%i'%(i)),act =tf.nn.leaky_relu,is_train=True,name='gen_batch_norm%i'%(i)))
             return FlattenLayer(convVals[-1]).outputs #return flattened outputs
 
 
@@ -160,20 +160,20 @@ class discriminator:
                     #add necessary convolutional layers
                     convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='d_conv_plus_classes_%i'%(i))
                     if pool:
-                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], convolutions[i+1], (5, 5),strides = (2,2), name='d_conv1_%s'%(i)), act=tf.nn.relu,is_train=True ,name='d_batch_norm%s'%(i)))
+                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], convolutions[i+1], (5, 5),strides = (2,2), name='d_conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name='d_batch_norm%s'%(i)))
                     else:
-                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], convolutions[i+1], (5, 5),strides = (1,1), name='d_conv1_%s'%(i)), act=tf.nn.relu,is_train=True ,name='d_batch_norm%s'%(i)))
+                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], convolutions[i+1], (5, 5),strides = (1,1), name='d_conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name='d_batch_norm%s'%(i)))
                 else:
                     # fully connecter layer
                     l,w,d = inputSize[0]/(2**numPools),inputSize[1]/(2**numPools),convolutions[-1]
                     flat3 = FlattenLayer(convVals[-1], name = 'd_flatten')
                     inputClass =InputLayer(classes, name='d_class_inputs')
                     concat = ConcatLayer([flat3, inputClass], 1, name ='d_concat_layer')
-                    # hid3 = DenseLayer(concat, fullyconnected, act = tf.nn.relu, name = 'd_fcl')
+                    # hid3 = DenseLayer(concat, fullyconnected, act = tf.nn.leaky_relu, name = 'd_fcl')
                     # # self.keep_prob = tf.placeholder(tf.float32)
                     # drop = InputLayer(tf.nn.dropout(hid3.outputs, self.keep_prob),name="Extra fucking dropout")
                     # concat2 = ConcatLayer([drop, inputClass], 1, name ='d_concat_layer_2')
-                    y_conv = DenseLayer(concat, output, act = tf.nn.relu, name = 'd_hidden_encode')
+                    y_conv = DenseLayer(concat, output, act = tf.nn.leaky_relu, name = 'd_hidden_encode')
             return y_conv.outputs
 
     def train(self,iterations,batchLen = 8):
@@ -190,7 +190,7 @@ class discriminator:
             batch = self.getbatch(batchLen)# get batch
             batch = batch[0],batch[1],newBatch
             # print(batch[0].shape)
-            z = np.random.normal(loc= 0, scale = 1, size = [batchLen,self.Zsize])# define random z
+            z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
             if i%50 == 0:
                 '''Evaluate accuracy'''
                 # batchacc = self.getbatch(batchLen)
@@ -211,7 +211,7 @@ class discriminator:
             train, real_input_summary, d_cross_entropy_summary= self.sess.run([self.train_step,self.real_input_summary,self.d_cross_entropy_summary],
             feed_dict=feed_dict) #train discrimator
             self.train_writer.add_summary(d_cross_entropy_summary, i)
-            feed_dict = {self.Z: z, self.gen_y_: batch[2], self.classes: batch[1], self.keep_prob: 0.6}
+            feed_dict = {self.Z: z, self.gen_y_: batch[2]* label_smoothing, self.classes: batch[1], self.keep_prob: 0.6}
             gen_train, fake_input_summary,gen_cross_entropy_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary],
             feed_dict=feed_dict)#train generator
 
