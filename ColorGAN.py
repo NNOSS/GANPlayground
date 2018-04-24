@@ -10,17 +10,17 @@ import numpy as np
 from tensorlayer.layers import *
 import numpy as np
 import matplotlib.pyplot as plt
-import importCIFAR
-importCIFAR.maybe_download_and_extract()
-
+import importFace
+# importCIFAR.maybe_download_and_extract()
+importFace.download_celeb_a()
 restore = False #whether or not to restor the file from a source
-model_filepath = './Models/GANModelCifar/model.ckpt' #filepaths to model and summaries
-summary_filepath = './Models/GANModelCifar/Summaries/'
+model_filepath = './Models/GANModelFaceHD/model.ckpt' #filepaths to model and summaries
+summary_filepath = './Models/GANModelFaceHD/Summaries/'
 label_smoothing = .9
-classes = 10
+classes = None
 convolutions = [-64, -128, -256, -512]
 fullyconnected = 256
-inputSize = [32,32,3]
+inputSize = [96,96,3]
 outputs = 1
 learning_rate = 1e-4
 
@@ -135,7 +135,7 @@ class GAN:
             inputs = InputLayer(Z, name='gen_inputs')
             inputClass =InputLayer(classes, name='gen_class_inputs_z')
 
-            if classes is not None: inputs = ConcatLayer([inputs, inputClass], 1, name ='gen_concat_layer_z')
+            if self.numClasses is not None: inputs = ConcatLayer([inputs, inputClass], 1, name ='gen_concat_layer_z')
             numPools = sum([1 for i in convolutions if i < 0]) #count number of total convolutions
             print(numPools)
             xs, ys = output[0]/(2**numPools), output[1]/(2**numPools) #calculate start image size from numPools
@@ -154,7 +154,7 @@ class GAN:
                 if i < len(convolutions)-1:
                     '''The purpose of tile is to add outputs of correct image size
                     that are all 1s to represent a certain class'''
-                    if classes is not None and i < len(convolutions)-1:#decide when to add the tiles
+                    if self.numClasses is not None and i < len(convolutions)-1:#decide when to add the tiles
                         class_image = tf.tile(tf.expand_dims(tf.expand_dims(classes,1),1), (1,xs,ys,1))
                         class_image = InputLayer(class_image, name='gen_class_inputs_%i'%(i))
                         convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='gen_deconv_plus_classes_%i'%(i))
@@ -192,7 +192,7 @@ class GAN:
                 '''Similarly tile for constant reference to class'''
 
                 if i < len(convolutions)-1:#if it is negative, that means we pool on this step
-                    if classes is not None:
+                    if self.numClasses is not None:
                         class_image = tf.tile(tf.expand_dims(tf.expand_dims(classes,1),1), (1,xs,ys,1))
                         class_image = InputLayer(class_image, name='d_class_inputs_%i'%(i))
                         convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='d_conv_plus_classes_%i'%(i))
@@ -211,7 +211,7 @@ class GAN:
                     # fully connecter layer
                     l,w,d = inputSize[0]/(2**numPools),inputSize[1]/(2**numPools),convolutions[-1]
                     flat3 = FlattenLayer(convVals[-1], name = 'd_flatten')
-                    if classes is not None:
+                    if self.numClasses is not None:
                         inputClass =InputLayer(classes, name='d_class_inputs')
                         flat3 = ConcatLayer([flat3, inputClass], 1, name ='d_concat_layer')
                     # hid3 = DenseLayer(concat, fullyconnected, act = tf.nn.leaky_relu, name = 'd_fcl')
@@ -223,39 +223,32 @@ class GAN:
 
     def train(self,iterations,batchLen = 8):
         '''Train the model'''
-        # accuracyEval = 50
-        # fake_batch = np.concatenate((np.ones((batchLen,1)),np.zeros((batchLen,1))), axis = 1) #vector presesenting predicitng fake value
-        # newBatch = np.concatenate((np.zeros((batchLen,1)),np.ones((batchLen,1))), axis = 1)  # vector predicting correct value
-        # fake_batch = np.ones((batchLen,1))
-        # newBatch = np.zeros((batchLen,1))
-
         print('Start Training')
         print('Loaded trainging')
         for i in range(iterations):
             batch = self.getbatch(batchLen)# get batch
+            # print('batch')
             # batch = batch[0],batch[1],newBatch
             # print(batch[0].shape)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
-            if i%50 == 0:
-                '''Evaluate accuracy'''
-                # batchacc = self.getbatch(batchLen)
-                # for i in range(accuracyEval//batchLen):
-                #     batch2 = self.getbatch(batchLen)
-                #     batchacc[0] = np.concatenate([batchacc[0],batch2[0]],axis = 0)
-                #     batchacc[1] = np.concatenate([batchacc[1],batch2[1]])
-                # feed_dict = {self.x: batch[0], self.Z: z, self.classes: batch[1], self.keep_prob: 0.6}
-                # train_accuracy_real, train_accuracy_fake = self.sess.run([self.accuracy_summary_real,self.accuracy_summary_fake],feed_dict=feed_dict)
-                # self.train_writer.add_summary(train_accuracy_real,i)
-                # self.train_writer.add_summary(train_accuracy_fake,i)
+
             if i % 1000 ==0:
                 '''Save session'''
                 if self.fileName is not None:
                     self.saver.save(self.sess, self.fileName)
-            feed_dict = {self.x: batch[0],self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
+            if self.numClasses is not None:
+                feed_dict = {self.x: batch[0],self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
+            else:
+                feed_dict = {self.x: batch,self.Z: z, self.learning_rate: learning_rate}
+
             _, real_input_summary, real_summary= self.sess.run([self.train_step,self.real_input_summary,self.real_summary],
             feed_dict=feed_dict) #train discrimator
             self.train_writer.add_summary(real_summary, i)
-            feed_dict = {self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
+            if self.numClasses is not None:
+                feed_dict = {self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
+            else:
+                feed_dict = {self.Z: z, self.learning_rate: learning_rate}
+
             _, fake_input_summary,fake_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.fake_summary],
             feed_dict=feed_dict)#train generator
             # gen_train, fake_input_summary,gen_cross_entropy_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary],
@@ -267,28 +260,22 @@ class GAN:
 
     def getbatch(self,batchLen):
         if self.my_gen is None:
-            self.my_gen = self.getbatchGenerator(batchLen)
-        x_batch, y_one_hot = next(self.my_gen,(None,None))
+            self.my_gen = importFace.get_batches(batchLen)
+        x_batch = next(self.my_gen,None)
         while x_batch is None:#when the generator is done, instantiate a new one
-            self.my_gen = self.getbatchGenerator(batchLen)
+            self.my_gen = importFace.get_batches(batchLen)
             # print("Ran Out!")
-            x_batch, y_one_hot = next(self.my_gen,(None,None))
-        return x_batch, y_one_hot
+            x_batch = next(self.my_gen,None)
+        print(x_batch.shape)
+        return np.reshape(x_batch, [-1, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
 
 
     def getbatchGenerator(self,batchLen):
         data,classes,one_hot_classes  = importCIFAR.load_training_data()
-        # print('BATCH-------------------')
-        # print(data)
-        # print(one_hot_classes)
+
         for i in range(0,len(classes),batchLen):
-            # print("running")
             j = min(i+batchLen,len(classes))
-            # print(i)
-            # print(self.inputSize[0]*self.inputSize[1]*self.inputSize[2])
             c_data = data[i:j].reshape([batchLen, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
-            # print(c_data.shape)
-            # print(c_data)
             yield c_data, one_hot_classes[i:j]
 
 
