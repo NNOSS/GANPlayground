@@ -12,7 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import importFace
 # importCIFAR.maybe_download_and_extract()
-restore = False #whether or not to restor the file from a source
+restore = True #whether or not to restor the file from a source
 model_filepath = './Models/GANModelFaceHD/model.ckpt' #filepaths to model and summaries
 summary_filepath = './Models/GANModelFaceHD/Summaries/'
 label_smoothing = .9
@@ -21,7 +21,7 @@ convolutions = [-64, -128, -256, -512]
 fullyconnected = 256
 inputSize = [96,96,3]
 outputs = 1
-learning_rate = 1e-4
+learning_rate = 5e-4
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -220,7 +220,7 @@ class GAN:
                     y_conv = DenseLayer(flat3, output, name = 'd_hidden_encode')
             return y_conv.outputs
 
-    def train(self,iterations,batchLen = 8):
+    def train(self,iterations,batchLen = 16):
         '''Train the model'''
         print('Start Training')
         print('Loaded trainging')
