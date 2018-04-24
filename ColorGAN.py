@@ -12,7 +12,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import importFace
 # importCIFAR.maybe_download_and_extract()
-importFace.download_celeb_a()
 restore = False #whether or not to restor the file from a source
 model_filepath = './Models/GANModelFaceHD/model.ckpt' #filepaths to model and summaries
 summary_filepath = './Models/GANModelFaceHD/Summaries/'
