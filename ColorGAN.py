@@ -32,6 +32,8 @@ tbWhenSavePicture = 50
 outputsFake = 15
 outputsReal = 5
 batch_size = 100
+z_learning_rate = 1e-3
+
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -140,7 +142,29 @@ class GAN:
         self.learning_rate = tf.placeholder(tf.float32)
         self.keep_prob = tf.placeholder(tf.float32)
 
+    def generateZMaps(self):
+        self.fake_z = self.createZMap(self.fake_input,self.classes,self.inputSize,self.convolutions,self.fullyconnected,self.output) #real image discrimator
+        self.real_z = self.createZMap(self.x,self.classes,self.inputSize,self.convolutions,self.fullyconnected,self.output, reuse = True)#fake image discrimator
+        self.z_vars = [var for var in t_vars if 'z_' in var.name] #find trainable discriminator variable
+        for var in self.z_vars:
+            print(var.name)
+        self.z_cross_entropy = tf.reduce_mean(tf.nn.mean_squared_error(labels=self.Z, logits=self.fake_z))#reduce mean for generator
+        self.z_train_step = tf.train.AdamOptimizer(z_learning_rate,beta1=.5).minimize(self.d_cross_entropy, var_list=self.z_vars)
+        self.z_cross_entropy_summary = tf.summary.scalar('z_loss',self.z_cross_entropy)
 
+
+
+    def createZMap(self,x,classes,inputSize,convolutions,fullyconnected,output, reuse = False):
+        flat3 = self.createDiscriminator(x,classes,inputSize,convolutions,fullyconnected,output,reuse = True, returnEarly =True)
+        with tf.variable_scope("z_generator") as scope:
+            if reuse: #get previous variable if we are reusing the discriminator but with fake images
+                scope.reuse_variables()
+            hid3 = DenseLayer(flat3, fullyconnected, act = tf.nn.leaky_relu, name = 'z_fcl')
+            # self.keep_prob = tf.placeholder(tf.float32)
+            # drop = InputLayer(tf.nn.dropout(hid3.outputs, self.keep_prob),name="Extra fucking dropout")
+            # concat2 = ConcatLayer([drop, inputClass], 1, name ='d_concat_layer_2')
+            y_conv = DenseLayer(hid3, self.Zsize, name = 'z_hidden_encode')
+        return tf.nn.tanh(y_conv.outputs)
 
     def createGenerator(self,Z, classes, inputSize,convolutions,fullyconnected,output):
         '''Function to create the enerator and give its output
@@ -223,9 +247,11 @@ class GAN:
                     else:
                         convVals.append(BatchNormLayer(Conv2d(convVals[-1], abs(convolutions[i+1]), (5, 5),strides = (1,1), name='d_conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name='d_batch_norm%s'%(i)))
                 else:
+
                     # fully connecter layer
                     l,w,d = inputSize[0]/(2**numPools),inputSize[1]/(2**numPools),abs(convolutions[-1])
                     flat3 = FlattenLayer(convVals[-1], name = 'd_flatten')
+                    if returnEarly: return flat3
                     if self.numClasses is not None:
                         inputClass =InputLayer(classes, name='d_class_inputs')
                         flat3 = ConcatLayer([flat3, inputClass], 1, name ='d_concat_layer')
@@ -236,6 +262,13 @@ class GAN:
                     y_conv = DenseLayer(flat3, output, name = 'd_hidden_encode')
             return y_conv.outputs
 
+    def train_z(self, iterations, batchLen = 50):
+        for i in range(iterations):
+            z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
+            feed_dict = {self.Z:z}
+            train_step_z, z_cross_entropy_summary = self.sess.run([self.train_step_z, self.z_cross_entropy_summary],
+            feed_dict=feed_dict)#train generator)
+            self.train_writer.add_summary(z_cross_entropy, i)
 
 
     def train(self,iterations,batchLen = 50):
