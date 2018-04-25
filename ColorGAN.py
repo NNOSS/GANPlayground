@@ -1,8 +1,8 @@
 from __future__ import print_function
 
 # Import MNIST data
-from tensorflow.examples.tutorials.mnist import input_data
-mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+# from tensorflow.examples.tutorials.mnist import input_data
+# mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 
 import tensorflow as tf
 import tensorlayer as tl
@@ -52,8 +52,8 @@ class GAN:
         self.fake_input = self.createGenerator(Z = self.Z, classes = self.classes,inputSize = self.Zsize, convolutions= convolutions[::-1],fullyconnected = None, output = self.inputSize) #generator
         self.fake_y_conv = self.createDiscriminator(self.fake_input,self.classes,inputSize,self.convolutions,fullyconnected,output, reuse = True)#fake image discrimator
 
-        self.fake_input_summary = tf.summary.image("fake_inputs", tf.reshape(self.fake_input, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 6)#show fake image
-        self.real_input_summary = tf.summary.image("real_inputs", tf.reshape(self.x, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 6)#show real image
+        self.fake_input_summary = tf.summary.image("fake_inputs", tf.reshape(self.fake_input, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 15)#show fake image
+        self.real_input_summary = tf.summary.image("real_inputs", tf.reshape(self.x, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = 5)#show real image
 
         t_vars = tf.trainable_variables()
         print(t_vars)
@@ -291,6 +291,7 @@ class GAN:
             j = min(i+batchLen,len(classes))
             c_data = data[i:j].reshape([batchLen, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
             yield c_data, one_hot_classes[i:j]
+
 
     def iterateOverVariables(self,numPictures):
         print('Loaded trainging')
