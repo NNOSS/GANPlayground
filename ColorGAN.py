@@ -3,7 +3,8 @@ from __future__ import print_function
 # Import MNIST data
 # from tensorflow.examples.tutorials.mnist import input_data
 # mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
-
+import os
+os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import tensorflow as tf
 import tensorlayer as tl
 import numpy as np
@@ -30,6 +31,7 @@ whenSaveMovie = 30
 tbWhenSavePicture = 50
 outputsFake = 15
 outputsReal = 5
+batch_size = 100
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -341,5 +343,5 @@ class GAN:
 
 
 myDiscriminator = GAN(inputSize = inputSize,convolutions = convolutions, fullyconnected = fullyconnected, output = 1, fileName = model_filepath,restore = restore, classes = classes)
-myDiscriminator.train(100000)
+myDiscriminator.train(100000, batch_size)
 #myDiscriminator.iterateOverVariables(40)
