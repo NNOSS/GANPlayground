@@ -11,8 +11,10 @@ from tensorlayer.layers import *
 import numpy as np
 import matplotlib.pyplot as plt
 import importFace
+import saveMovie
 # importCIFAR.maybe_download_and_extract()
 restore = True #whether or not to restor the file from a source
+get_video = True
 model_filepath = './Models/GANModelFaceHD/model.ckpt' #filepaths to model and summaries
 summary_filepath = './Models/GANModelFaceHD/Summaries/'
 label_smoothing = .9
@@ -21,7 +23,7 @@ convolutions = [-64, -128, -256, -512]
 fullyconnected = 256
 inputSize = [96,96,3]
 outputs = 1
-learning_rate = 5e-4
+learning_rate = 1e-4
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -220,10 +222,14 @@ class GAN:
                     y_conv = DenseLayer(flat3, output, name = 'd_hidden_encode')
             return y_conv.outputs
 
-    def train(self,iterations,batchLen = 16):
+    def train(self,iterations,batchLen = 50):
         '''Train the model'''
         print('Start Training')
         print('Loaded trainging')
+        if get_video:
+            self.imageBuffer = []
+            self.imageFilePath = './Models/GANModelFaceHD/refinementMovie.gif'
+            z_constant = np.random.uniform(-1, 1, size = [1,self.Zsize])
         for i in range(iterations):
             batch = self.getbatch(batchLen)# get batch
             # print('batch')
@@ -231,7 +237,7 @@ class GAN:
             # print(batch[0].shape)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
 
-            if i % 1000 ==0:
+            if i % 200 ==0:
                 '''Save session'''
                 if self.fileName is not None:
                     self.saver.save(self.sess, self.fileName)
@@ -248,13 +254,23 @@ class GAN:
             else:
                 feed_dict = {self.Z: z, self.learning_rate: learning_rate}
 
-            _, fake_input_summary,fake_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.fake_summary],
+            _, fake_input_summary,fake_summary = self.sess.run([self.gen_train_step,self.fake_input_summary,self.fake_summary],
             feed_dict=feed_dict)#train generator
+            if get_video and i % 5 == 0:
+                feed_dict.update({self.Z: z_constant})
+                fake_input = self.sess.run([self.fake_input],
+                feed_dict=feed_dict)
+                self.imageBuffer.append(np.reshape(fake_input[0],[self.inputSize[0],self.inputSize[1],self.inputSize[2]]))
             # gen_train, fake_input_summary,gen_cross_entropy_summary= self.sess.run([self.gen_train_step,self.fake_input_summary,self.gen_cross_entropy_summary],
             # feed_dict=feed_dict)#train generator
             if i % 50 ==0:#push images every 50 iterations
                 self.train_writer.add_summary(fake_input_summary, i)
                 self.train_writer.add_summary(real_input_summary, i)
+
+            if i % 30 == 0:
+                if get_video:
+                    saveMovie.writeMovie(self.imageFilePath,self.imageBuffer)
+                    # self.imageBuffer = []
             self.train_writer.add_summary(fake_summary, i)
 
     def getbatch(self,batchLen):
@@ -268,7 +284,6 @@ class GAN:
         print(x_batch.shape)
         return np.reshape(x_batch, [-1, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
 
-
     def getbatchGenerator(self,batchLen):
         data,classes,one_hot_classes  = importCIFAR.load_training_data()
 
@@ -277,7 +292,31 @@ class GAN:
             c_data = data[i:j].reshape([batchLen, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
             yield c_data, one_hot_classes[i:j]
 
+    def iterateOverVariables(self,numPictures):
+        print('Loaded trainging')
+        sizeDiff = 5
+        if get_video:
+            self.imageBuffer = [[] for i in range(self.Zsize/sizeDiff)]
+            self.imageFilePath = './Models/GANModelFaceHD/latentSpace/'
+            z = np.zeros([self.Zsize/sizeDiff,self.Zsize],dtype=np.float32)
+        for i in range(-numPictures,numPictures):
+            print(i)
+            for j in range(self.Zsize/sizeDiff):
+                z[j][j] = float(i)/numPictures
+            feed_dict = {self.Z: z}
+            fake_input = self.sess.run([self.fake_input],
+            feed_dict=feed_dict)
+            # print(fake_input[0][0].shape)
+            # print(len(self.imageBuffer[0]))
+            # print(np.reshape(fake_input[0][0],[self.inputSize[0],self.inputSize[1],self.inputSize[2]]).shape)
+            [self.imageBuffer[j].append(np.reshape(fake_input[0][j],[self.inputSize[0],self.inputSize[1],self.inputSize[2]])) for j in range(self.Zsize/sizeDiff)]
+                    # self.imageBuffer = []
+        for j in range(self.Zsize/sizeDiff):
+            # print(self.imageBuffer[j])
+            # print(len(self.imageBuffer[j]))
+            saveMovie.writeMovie(self.imageFilePath+str(j)+".gif",self.imageBuffer[j])
 
 
 myDiscriminator = GAN(inputSize = inputSize,convolutions = convolutions, fullyconnected = fullyconnected, output = 1, fileName = model_filepath,restore = restore, classes = classes)
-myDiscriminator.train(100000)
+# myDiscriminator.train(100000)
+myDiscriminator.iterateOverVariables(30)
