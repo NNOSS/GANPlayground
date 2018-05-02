@@ -16,8 +16,8 @@ import saveMovie
 # importCIFAR.maybe_download_and_extract()
 restore = True #whether or not to restor the file from a source
 get_video = False
-model_filepath = './Models/GANModelFaceHD/model.ckpt' #filepaths to model and summaries
-summary_filepath = './Models/GANModelFaceHD/Summaries/'
+model_filepath = './Models/FinalFaceHD/model.ckpt' #filepaths to model and summaries
+summary_filepath = './Models/FinalFaceHD/Summaries/'
 label_smoothing = .9
 classes = None
 convolutions = [-64, -128, -256, -512]
@@ -30,9 +30,10 @@ whenAddPicture = 2
 whenSaveMovie = 30
 tbWhenSavePicture = 50
 outputsFake = 15
-outputsReal = 5
-batch_size = 100
-z_learning_rate = 1e-3
+outputsReal = 3
+reconfig_outputs = 3
+batch_size = 50
+z_learning_rate = 1e-4
 
 
 
@@ -44,6 +45,12 @@ class GAN:
         self.defineVariables(inputSize,convolutions,fullyconnected,output,restore,fileName, classes)
         self.defineModels()
         self.defineLearner()
+        self.generateZMaps()
+        t_vars = tf.trainable_variables()
+
+        # self.get_vars = [var for var in t_vars if 'z_' not in var.name] #find trainable discriminator variable
+        # for var in self.get_vars:
+        #     print(var.name)
 
         self.saver = tf.train.Saver()#saving and tensorboard
         self.sess.run(tf.global_variables_initializer())
@@ -53,6 +60,11 @@ class GAN:
             self.saver.restore(self.sess, self.fileName)
         else:
             self.saver.save(self.sess, self.fileName)
+
+        # self.saver2 = tf.train.Saver()
+
+
+        # self.sess.run(tf.global_variables_initializer())
 
     def defineLearner(self):
         t_vars = tf.trainable_variables()
@@ -145,32 +157,36 @@ class GAN:
     def generateZMaps(self):
         self.fake_z = self.createZMap(self.fake_input,self.classes,self.inputSize,self.convolutions,self.fullyconnected,self.output) #real image discrimator
         self.real_z = self.createZMap(self.x,self.classes,self.inputSize,self.convolutions,self.fullyconnected,self.output, reuse = True)#fake image discrimator
+        self.x_reconfigured = self.createGenerator(Z = self.real_z, classes = self.classes,inputSize = self.Zsize, convolutions= self.convolutions[::-1],fullyconnected = None, output = self.inputSize, reuse = True)
+        self.reconfig_inputs_summary = tf.summary.image("reconfig_inputs", tf.reshape(self.x_reconfigured, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = reconfig_outputs)#show fake image
+
+        t_vars = tf.trainable_variables()
         self.z_vars = [var for var in t_vars if 'z_' in var.name] #find trainable discriminator variable
         for var in self.z_vars:
             print(var.name)
-        self.z_cross_entropy = tf.reduce_mean(tf.nn.mean_squared_error(labels=self.Z, logits=self.fake_z))#reduce mean for generator
-        self.z_train_step = tf.train.AdamOptimizer(z_learning_rate,beta1=.5).minimize(self.d_cross_entropy, var_list=self.z_vars)
+        self.z_cross_entropy = tf.reduce_mean(tf.losses.mean_squared_error(labels=self.Z, predictions=self.fake_z))#reduce mean for generator
+        self.z_train_step = tf.train.AdamOptimizer(z_learning_rate,beta1=.5).minimize(self.z_cross_entropy, var_list=self.z_vars)
         self.z_cross_entropy_summary = tf.summary.scalar('z_loss',self.z_cross_entropy)
 
-
-
     def createZMap(self,x,classes,inputSize,convolutions,fullyconnected,output, reuse = False):
-        flat3 = self.createDiscriminator(x,classes,inputSize,convolutions,fullyconnected,output,reuse = True, returnEarly =True)
-        with tf.variable_scope("z_generator") as scope:
+        flat3 = self.createDiscriminator(x,classes,inputSize,convolutions,fullyconnected,output,reuse = reuse, returnEarly =True)
+        with tf.variable_scope("z_discriminator") as scope:
             if reuse: #get previous variable if we are reusing the discriminator but with fake images
                 scope.reuse_variables()
-            hid3 = DenseLayer(flat3, fullyconnected, act = tf.nn.leaky_relu, name = 'z_fcl')
+            hid3 = DenseLayer(flat3, fullyconnected, act = tf.nn.relu, name = 'z_fcl')
             # self.keep_prob = tf.placeholder(tf.float32)
             # drop = InputLayer(tf.nn.dropout(hid3.outputs, self.keep_prob),name="Extra fucking dropout")
             # concat2 = ConcatLayer([drop, inputClass], 1, name ='d_concat_layer_2')
             y_conv = DenseLayer(hid3, self.Zsize, name = 'z_hidden_encode')
-        return tf.nn.tanh(y_conv.outputs)
+        return tf.nn.tanh(y_conv.outputs, name = 'z_tanh')
 
-    def createGenerator(self,Z, classes, inputSize,convolutions,fullyconnected,output):
+    def createGenerator(self,Z, classes, inputSize,convolutions,fullyconnected,output, reuse = False):
         '''Function to create the enerator and give its output
         Note that in convolutions, negative convolutions mean downsampling'''
         # Generator Net
         with tf.variable_scope("gen_generator") as scope:
+            if reuse:
+                scope.reuse_variables()
             inputs = InputLayer(Z, name='gen_inputs')
             inputClass =InputLayer(classes, name='gen_class_inputs_z')
 
@@ -217,7 +233,9 @@ class GAN:
 
         '''Create a discrimator, not the convolutions may be negative to represent
         downsampling'''
-        with tf.variable_scope("d_discriminator") as scope:
+        prefix = 'd_'
+        if returnEarly: prefix = "z_"
+        with tf.variable_scope(prefix + "discriminator") as scope:
             if reuse: #get previous variable if we are reusing the discriminator but with fake images
                 scope.reuse_variables()
             flatSize = inputSize[0]*inputSize[1]*inputSize[2]
@@ -225,7 +243,7 @@ class GAN:
             xs, ys = inputSize[0],inputSize[1]
             numPools = sum([1 for i in convolutions if i < 0])
             print(numPools)
-            inputs = InputLayer(x_image, name='d_disc_inputs')
+            inputs = InputLayer(x_image, name=prefix + 'disc_inputs')
             convVals = [inputs]#list of filters
             for i,v in enumerate(convolutions):
                 '''Similarly tile for constant reference to class'''
@@ -233,8 +251,8 @@ class GAN:
                 if i < len(convolutions)-1:#if it is negative, that means we pool on this step
                     if self.numClasses is not None:
                         class_image = tf.tile(tf.expand_dims(tf.expand_dims(classes,1),1), (1,xs,ys,1))
-                        class_image = InputLayer(class_image, name='d_class_inputs_%i'%(i))
-                        convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name ='d_conv_plus_classes_%i'%(i))
+                        class_image = InputLayer(class_image, name=prefix + 'class_inputs_%i'%(i))
+                        convVals[-1] = ConcatLayer([convVals[-1], class_image], 3, name =prefix + 'conv_plus_classes_%i'%(i))
 
                     pool=False
                     if convolutions[i+1] < 0:
@@ -243,32 +261,44 @@ class GAN:
                         xs, ys = xs/2, ys/2
                     #add necessary convolutional layers
                     if pool:
-                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], abs(convolutions[i+1]), (5, 5),strides = (2,2), name='d_conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name='d_batch_norm%s'%(i)))
+                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], abs(convolutions[i+1]), (5, 5),strides = (2,2), name=prefix + 'conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name=prefix + 'batch_norm%s'%(i)))
                     else:
-                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], abs(convolutions[i+1]), (5, 5),strides = (1,1), name='d_conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name='d_batch_norm%s'%(i)))
+                        convVals.append(BatchNormLayer(Conv2d(convVals[-1], abs(convolutions[i+1]), (5, 5),strides = (1,1), name=prefix + 'conv1_%s'%(i)), act=tf.nn.leaky_relu,is_train=True ,name=prefix + 'batch_norm%s'%(i)))
                 else:
 
                     # fully connecter layer
                     l,w,d = inputSize[0]/(2**numPools),inputSize[1]/(2**numPools),abs(convolutions[-1])
-                    flat3 = FlattenLayer(convVals[-1], name = 'd_flatten')
+                    flat3 = FlattenLayer(convVals[-1], name = prefix + 'flatten')
                     if returnEarly: return flat3
                     if self.numClasses is not None:
-                        inputClass =InputLayer(classes, name='d_class_inputs')
-                        flat3 = ConcatLayer([flat3, inputClass], 1, name ='d_concat_layer')
+                        inputClass =InputLayer(classes, name=prefix + 'class_inputs')
+                        flat3 = ConcatLayer([flat3, inputClass], 1, name =prefix + 'concat_layer')
                     # hid3 = DenseLayer(concat, fullyconnected, act = tf.nn.leaky_relu, name = 'd_fcl')
                     # # self.keep_prob = tf.placeholder(tf.float32)
                     # drop = InputLayer(tf.nn.dropout(hid3.outputs, self.keep_prob),name="Extra fucking dropout")
                     # concat2 = ConcatLayer([drop, inputClass], 1, name ='d_concat_layer_2')
-                    y_conv = DenseLayer(flat3, output, name = 'd_hidden_encode')
+                    y_conv = DenseLayer(flat3, output, name = prefix + 'hidden_encode')
             return y_conv.outputs
 
     def train_z(self, iterations, batchLen = 50):
         for i in range(iterations):
+            batch = self.getbatch(batchLen)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
-            feed_dict = {self.Z:z}
-            train_step_z, z_cross_entropy_summary = self.sess.run([self.train_step_z, self.z_cross_entropy_summary],
+            feed_dict = {self.Z:z,self.x: batch}
+            _, z_cross_entropy_summary, real_input_summary, reconfig_inputs_summary = self.sess.run([self.z_train_step, self.z_cross_entropy_summary,self.real_input_summary,self.reconfig_inputs_summary],
             feed_dict=feed_dict)#train generator)
-            self.train_writer.add_summary(z_cross_entropy, i)
+            self.train_writer.add_summary(z_cross_entropy_summary, i)
+            if i % 10 == 0:
+                self.train_writer.add_summary(real_input_summary, i)
+                self.train_writer.add_summary(reconfig_inputs_summary, i)
+            if i % 30 == 0: print(i)
+
+            if i % whenSave ==0:
+                '''Save session'''
+                if self.fileName is not None:
+                    self.saver.save(self.sess, self.fileName)
+
+
 
 
     def train(self,iterations,batchLen = 50):
@@ -286,10 +316,10 @@ class GAN:
             # print(batch[0].shape)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
 
-            if i % whenSave ==0:
-                '''Save session'''
-                if self.fileName is not None:
-                    self.saver.save(self.sess, self.fileName)
+            # if i % whenSave ==0:
+                # '''Save session'''
+                # if self.fileName is not None:
+                #     self.saver.save(self.sess, self.fileName)
             if self.numClasses is not None:
                 feed_dict = {self.x: batch[0],self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
             else:
@@ -297,7 +327,7 @@ class GAN:
 
             _, real_input_summary, real_summary= self.sess.run([self.train_step,self.real_input_summary,self.real_summary],
             feed_dict=feed_dict) #train discrimator
-            self.train_writer.add_summary(real_summary, i)
+
             if self.numClasses is not None:
                 feed_dict = {self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
             else:
@@ -321,6 +351,7 @@ class GAN:
                     saveMovie.writeMovie(self.imageFilePath,self.imageBuffer)
                     # self.imageBuffer = []
             self.train_writer.add_summary(fake_summary, i)
+            self.train_writer.add_summary(real_summary, i)
 
     def getbatch(self,batchLen):
         if self.my_gen is None:
