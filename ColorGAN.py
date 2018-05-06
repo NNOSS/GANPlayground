@@ -52,8 +52,8 @@ class GAN:
         self.generateZMaps()
         t_vars = tf.trainable_variables()
 
-        # self.get_vars = [var for var in t_vars if 'z_' not in var.name] #find trainable discriminator variable
-        # for var in self.get_vars:
+        #self.get_vars = [var for var in t_vars if 'z_' not in var.name] #find trainable discriminator variable
+        #for var in self.get_vars:
         #     print(var.name)
 
         self.saver = tf.train.Saver()#saving and tensorboard
@@ -65,7 +65,7 @@ class GAN:
         else:
             self.saver.save(self.sess, self.fileName)
 
-        # self.saver2 = tf.train.Saver()
+        #self.saver = tf.train.Saver()
 
 
         # self.sess.run(tf.global_variables_initializer())
@@ -138,7 +138,6 @@ class GAN:
         self.fake_input_summary = tf.summary.image("fake_inputs", tf.reshape(self.fake_input, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = outputsFake)#show fake image
         self.real_input_summary = tf.summary.image("real_inputs", tf.reshape(self.x, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = outputsReal)#show real image
 
-
     def defineVariables(self,inputSize,convolutions,fullyconnected,output,restore = False,fileName =None, classes = None):
         '''Make the instantiator, first make a lot of constants available'''
         self.inputSize = inputSize
@@ -163,7 +162,7 @@ class GAN:
         self.real_z = self.createZMap(self.x,self.classes,self.inputSize,self.convolutions,self.fullyconnected,self.output, reuse = True)#fake image discrimator
         self.x_reconfigured = self.createGenerator(Z = self.real_z, classes = self.classes,inputSize = self.Zsize, convolutions= self.convolutions[::-1],fullyconnected = None, output = self.inputSize, reuse = True)
         self.reconfig_inputs_summary = tf.summary.image("reconfig_inputs", tf.reshape(self.x_reconfigured, [-1,inputSize[0],inputSize[1],inputSize[2]]),max_outputs = reconfig_outputs)#show fake image
-
+	self.input_summary_merge = tf.summary.merge([self.reconfig_inputs_summary, self.real_input_summary])
         t_vars = tf.trainable_variables()
         self.z_vars = [var for var in t_vars if 'z_' in var.name] #find trainable discriminator variable
         for var in self.z_vars:
@@ -289,12 +288,11 @@ class GAN:
             batch = self.getbatch(batchLen)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
             feed_dict = {self.Z:z,self.x: batch}
-            _, z_cross_entropy_summary, real_input_summary, reconfig_inputs_summary = self.sess.run([self.z_train_step, self.z_cross_entropy_summary,self.real_input_summary,self.reconfig_inputs_summary],
+            _, z_cross_entropy_summary, input_summary_merge = self.sess.run([self.z_train_step, self.z_cross_entropy_summary,self.input_summary_merge],
             feed_dict=feed_dict)#train generator)
             self.train_writer.add_summary(z_cross_entropy_summary, i)
-            if i % 10 == 0:
-                self.train_writer.add_summary(real_input_summary, i)
-                self.train_writer.add_summary(reconfig_inputs_summary, i)
+            if i % 5 == 0:
+		self.train_writer.add_summary(input_summary_merge, i)
             if i % 30 == 0: print(i)
 
             if i % whenSave ==0:
