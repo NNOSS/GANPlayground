@@ -14,27 +14,31 @@ import matplotlib.pyplot as plt
 import importFace
 import saveMovie
 # importCIFAR.maybe_download_and_extract()
-restore = True #whether or not to restor the file from a source
+
+restore = False #whether or not to restor the file from a source
 get_video = False
-model_filepath = './Models/FinalFaceHD/model.ckpt' #filepaths to model and summaries
-summary_filepath = './Models/FinalFaceHD/Summaries/'
-label_smoothing = .9
-classes = None
-convolutions = [-64, -128, -256, -512]
-fullyconnected = 256
-inputSize = [96,96,3]
-outputs = 1
-learning_rate = 1e-4
 whenSave = 200
-whenAddPicture = 2
-whenSaveMovie = 30
-tbWhenSavePicture = 50
+
+classes = None
+convolutions = [-64, -64, -64, -64, 64]
+fullyconnected = 512
+
+z_learning_rate = 1e-4
+learning_rate = 1e-4
+batch_size = 50
+
+model_filepath = './Models/LargeFace/model.ckpt' #filepaths to model and summaries
+summary_filepath = './Models/LargeFace/Summaries/'
+inputSize = [112,112,3]
+outputs = 1
+
 outputsFake = 15
 outputsReal = 3
 reconfig_outputs = 3
-batch_size = 50
-z_learning_rate = 1e-4
+tbWhenSavePicture = 50
 
+whenAddPicture = 2
+whenSaveMovie = 30
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -405,7 +409,8 @@ class GAN:
         saveMovie.writeMovie(self.imageFilePath+"mega.gif",self.imageBuffer2)
 
 
+if __name__ == "__main__":
 
-myDiscriminator = GAN(inputSize = inputSize,convolutions = convolutions, fullyconnected = fullyconnected, output = 1, fileName = model_filepath,restore = restore, classes = classes)
-myDiscriminator.train(100000, batch_size)
-#myDiscriminator.iterateOverVariables(40)
+    myDiscriminator = GAN(inputSize = inputSize,convolutions = convolutions, fullyconnected = fullyconnected, output = 1, fileName = model_filepath,restore = restore, classes = classes)
+    myDiscriminator.train(100000, batch_size)
+    #myDiscriminator.iterateOverVariables(40)
