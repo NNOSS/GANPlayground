@@ -15,8 +15,8 @@ import importFace
 import saveMovie
 # importCIFAR.maybe_download_and_extract()
 
-restore = False #whether or not to restor the file from a source
-get_video = False
+restore = True #whether or not to restor the file from a source
+get_video = True
 whenSave = 200
 
 classes = None
@@ -25,7 +25,7 @@ fullyconnected = 512
 
 z_learning_rate = 1e-4
 learning_rate = 1e-4
-batch_size = 50
+batch_size = 32
 
 model_filepath = './Models/LargeFace/model.ckpt' #filepaths to model and summaries
 summary_filepath = './Models/LargeFace/Summaries/'
@@ -37,8 +37,8 @@ outputsReal = 3
 reconfig_outputs = 3
 tbWhenSavePicture = 50
 
-whenAddPicture = 2
-whenSaveMovie = 30
+whenAddPicture = 10
+whenSaveMovie = 500
 
 
 # model_filepath = './../thisworks/model.ckpt'

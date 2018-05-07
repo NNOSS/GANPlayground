@@ -10,8 +10,8 @@ from glob import glob
 data_dir = './Models/data'
 # Let's download the dataset
 
-IMAGE_HEIGHT = 112
-IMAGE_WIDTH = 112
+IMAGE_HEIGHT = 128
+IMAGE_WIDTH = 128
 data_files = glob(os.path.join(data_dir, 'celebA/*.jpg'))
 shape = len(data_files), IMAGE_WIDTH, IMAGE_HEIGHT, 3
 
@@ -23,11 +23,11 @@ def get_image(image_path, width, height, mode):
 
     if image.size != (width, height):
         # Remove most pixels that aren't part of a face
-        face_width = face_height = 112
+        face_width = face_height = 128
         j = (image.size[0] - face_width) // 2
         i = (image.size[1] - face_height) // 2
         image = image.crop([j, i, j + face_width, i + face_height])
-        image = image.resize([width, height], Image.BILINEAR)
+        #image = image.resize([width, height], Image.BILINEAR)
 
     return np.array(image.convert(mode))
 
