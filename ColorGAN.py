@@ -11,10 +11,10 @@ import numpy as np
 from tensorlayer.layers import *
 import numpy as np
 import matplotlib.pyplot as plt
-import importFace
+import importImg
 import saveMovie
 # importCIFAR.maybe_download_and_extract()
-
+folder = 'forest_path/*.jpg'
 restore = False #whether or not to restor the file from a source
 get_video = False
 whenSave = 200
@@ -25,11 +25,12 @@ fullyconnected = 512
 
 z_learning_rate = 1e-4
 learning_rate = 1e-4
-batch_size = 50
+batch_size = 32
 
-model_filepath = './Models/LargeFace/model.ckpt' #filepaths to model and summaries
-summary_filepath = './Models/LargeFace/Summaries/'
-inputSize = [112,112,3]
+model_filepath = './Models/ForestPath/model.ckpt' #filepaths to model and summaries
+summary_filepath = './Models/ForestPath/Summaries/'
+box = (256,256)
+inputSize = [128,128,3]
 outputs = 1
 
 outputsFake = 15
@@ -39,6 +40,7 @@ tbWhenSavePicture = 50
 
 whenAddPicture = 2
 whenSaveMovie = 30
+imageFilePath = './Models/GANModelFaceHD/refinementMovie.gif'
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -309,7 +311,7 @@ class GAN:
         print('Loaded trainging')
         if get_video:
             self.imageBuffer = []
-            self.imageFilePath = './Models/GANModelFaceHD/refinementMovie.gif'
+            self.imageFilePath = imageFilePath
             z_constant = np.random.uniform(-1, 1, size = [1,self.Zsize])
         for i in range(iterations):
             batch = self.getbatch(batchLen)# get batch
@@ -318,10 +320,10 @@ class GAN:
             # print(batch[0].shape)
             z = np.random.uniform(-1, 1, size = [batchLen,self.Zsize])# define random z
 
-            # if i % whenSave ==0:
-                # '''Save session'''
-                # if self.fileName is not None:
-                #     self.saver.save(self.sess, self.fileName)
+            if i % whenSave ==0:
+                '''Save session'''
+                if self.fileName is not None:
+                    self.saver.save(self.sess, self.fileName)
             if self.numClasses is not None:
                 feed_dict = {self.x: batch[0],self.Z: z, self.classes: batch[1], self.learning_rate: learning_rate}
             else:
@@ -357,11 +359,11 @@ class GAN:
 
     def getbatch(self,batchLen):
         if self.my_gen is None:
-            self.my_gen = importFace.get_batches(batchLen)
+            self.my_gen = importImg.get_batches(batchLen,folder, self.inputSize[0],self.inputSize[1], box=box)
         x_batch = next(self.my_gen,None)
         while x_batch is None:#when the generator is done, instantiate a new one
-            self.my_gen = importFace.get_batches(batchLen)
-            # print("Ran Out!")
+            self.my_gen = importImg.get_batches(batchLen,folder, self.inputSize[0],self.inputSize[1], box=box)
+            print("Ran Out!")
             x_batch = next(self.my_gen,None)
         print(x_batch.shape)
         return np.reshape(x_batch, [-1, self.inputSize[0]*self.inputSize[1]*self.inputSize[2]])
@@ -381,7 +383,7 @@ class GAN:
         if get_video:
             self.imageBuffer = [[] for i in range(self.Zsize/sizeDiff)]
             self.imageBuffer2 =[]
-            self.imageFilePath = './Models/GANModelFaceHD/'
+            self.imageFilePath = imageFilePath
             z = np.zeros([self.Zsize/sizeDiff,self.Zsize],dtype=np.float32)
         for i in range(-numPictures,numPictures):
             print(i)
@@ -404,7 +406,7 @@ class GAN:
             # print(self.imageBuffer[j])
             # print(len(self.imageBuffer[j]))
             # saveMovie.writeMovie(self.imageFilePath+str(j)+".gif",self.imageBuffer[j])
-        saveMovie.writeMovie(self.imageFilePath+"mega.gif",self.imageBuffer2)
+        saveMovie.writeMovie(self.imageFilePath,self.imageBuffer2)
 
 
 if __name__ == "__main__":

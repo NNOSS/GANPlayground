@@ -10,34 +10,39 @@ from glob import glob
 data_dir = './Models/data'
 # Let's download the dataset
 
-IMAGE_HEIGHT = 112
-IMAGE_WIDTH = 112
-data_files = glob(os.path.join(data_dir, 'celebA/*.jpg'))
-shape = len(data_files), IMAGE_WIDTH, IMAGE_HEIGHT, 3
-
-def get_image(image_path, width, height, mode):
+def get_image(image_path, width, height, mode, box = None):
     """
     Read image from image_path
     """
     image = Image.open(image_path)
 
+
     if image.size != (width, height):
         # Remove most pixels that aren't part of a face
-        face_width = face_height = 112
-        j = (image.size[0] - face_width) // 2
-        i = (image.size[1] - face_height) // 2
-        image = image.crop([j, i, j + face_width, i + face_height])
-        image = image.resize([width, height], Image.BILINEAR)
+        if box is not None:
+            face_width = box[0]
+            face_height = box[1]
+            j = (image.size[0] - face_width) // 2
+            i = (image.size[1] - face_height) // 2
+            image = image.crop([j, i, j + face_width, i + face_height])
+            image = image.resize([width, height], Image.BILINEAR)
+
+        else:
+            face_width = width
+            face_height = height
+            j = (image.size[0] - face_width) // 2
+            i = (image.size[1] - face_height) // 2
+            image = image.crop([j, i, j + face_width, i + face_height])
 
     return np.array(image.convert(mode))
 
-def get_batch(image_files, width, height, mode='RGB'):
+def get_batch(image_files, width, height, box = None, mode='RGB'):
     """
     Get a single image
     """
     # print('get file')
     data_batch = np.array(
-        [get_image(sample_file, width, height, mode) for sample_file in image_files]).astype(np.float32)
+        [get_image(sample_file, width, height, mode, box=box) for sample_file in image_files]).astype(np.float32)
 
     # Make sure the images are in 4 dimensions
     if len(data_batch.shape) < 4:
@@ -45,18 +50,20 @@ def get_batch(image_files, width, height, mode='RGB'):
 
     return data_batch
 
-def get_batches(batch_size):
+def get_batches(batch_size,folder,IMAGE_WIDTH,IMAGE_HEIGHT, box = None):
     """
     Generate batches
     """
     # print('start get_batches')
     IMAGE_MAX_VALUE = 255
     current_index = 0
+    data_files = glob(os.path.join(data_dir, folder))
+    shape = len(data_files), IMAGE_WIDTH, IMAGE_HEIGHT, 3
     # print(shape[0])
     while current_index + batch_size <= shape[0]:
         data_batch = get_batch(
             data_files[current_index:current_index + batch_size],
-            *shape[1:3])
+            *shape[1:3], box=box)
         # print('got files')
         current_index += batch_size
         yield data_batch / IMAGE_MAX_VALUE - 0.5
