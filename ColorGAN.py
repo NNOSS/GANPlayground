@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import importImg
 import saveMovie
 # importCIFAR.maybe_download_and_extract()
-folder = 'forest_path/*.jpg'
+folder = 'sea_cliff/*.jpg'
 restore = False #whether or not to restor the file from a source
 get_video = True
 whenSave = 200
