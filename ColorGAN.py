@@ -4,7 +4,7 @@ from __future__ import print_function
 # from tensorflow.examples.tutorials.mnist import input_data
 # mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="-1"
+# os.environ["CUDA_VISIBLE_DEVICES"]="-1"
 import tensorflow as tf
 import tensorlayer as tl
 import numpy as np
@@ -13,11 +13,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import importImg
 import saveMovie
+import imageio
+
 # importCIFAR.maybe_download_and_extract()
-folder = 'sea_cliff/*.jpg'
+folder = 'celebA/*.jpg'
 restore = False #whether or not to restor the file from a source
-get_video = True
-whenSave = 200
+get_video = False
+whenSave = 500
+iterations = 1000000
 
 classes = None
 convolutions = [-128, -128, -128, -128, 128]
@@ -25,22 +28,22 @@ fullyconnected = 1024
 
 z_learning_rate = 1e-4
 learning_rate = 1e-4
-batch_size = 32
+batch_size = 64
 
-model_filepath = './Models/SeaCliff/model.ckpt' #filepaths to model and summaries
-summary_filepath = './Models/SeaCliff/Summaries/'
-box = None
-inputSize = [256,256,3]
+model_filepath = './Models/Faces/model.ckpt' #filepaths to model and summaries
+summary_filepath = './Models/Faces/Summaries/'
+box = (150,150)
+inputSize = [150,150,3]
 outputs = 1
 
 outputsFake = 15
 outputsReal = 3
 reconfig_outputs = 3
-tbWhenSavePicture = 50
+tbWhenSavePicture = 15
 
 whenAddPicture = 10
 whenSaveMovie = 500
-imageFilePath = './Models/GANModelFaceHD/refinementMovie.gif'
+imageFilePath = './Models/Faces/refineMovie.gif'
 
 
 # model_filepath = './../thisworks/model.ckpt'
@@ -379,38 +382,62 @@ class GAN:
 
     def iterateOverVariables(self,numPictures):
         print('Loaded trainging')
-        sizeDiff = 1
+        examples = 9
+        length = 3
+        height = 3
         if get_video:
-            self.imageBuffer = [[] for i in range(self.Zsize/sizeDiff)]
+            # self.imageBuffer = [[] for i in range(self.Zsize/sizeDiff)]
             self.imageBuffer2 =[]
             self.imageFilePath = imageFilePath
-            z = np.zeros([self.Zsize/sizeDiff,self.Zsize],dtype=np.float32)
-        for i in range(-numPictures,numPictures):
-            print(i)
-            for j in range(self.Zsize/sizeDiff):
-                z[j][j] = float(i)/numPictures
-            feed_dict = {self.Z: z}
-            fake_input = self.sess.run([self.fake_input],
-            feed_dict=feed_dict)
-            mega = np.reshape(fake_input[0],[-1,self.inputSize[0],self.inputSize[1],self.inputSize[2]])
+            z = np.zeros([examples,self.Zsize],dtype=np.float32)
+        with imageio.get_writer(imageFilePath, mode='I') as writer:
 
-            mega = [np.concatenate(mega[j:j+10],axis = 1) for j in range(0,100,10)]
-            mega = np.concatenate(mega[0:10],axis =0)
-            # print(fake_input[0][0].shape)
-            # print(len(self.imageBuffer[0]))
-            # print(np.reshape(fake_input[0][0],[self.inputSize[0],self.inputSize[1],self.inputSize[2]]).shape)
-            # [self.imageBuffer[j].append(np.reshape(fake_input[0][j],[self.inputSize[0],self.inputSize[1],self.inputSize[2]])) for j in range(self.Zsize/sizeDiff)]
-            self.imageBuffer2.append(mega)
+            for i in range(-numPictures,numPictures):
+                print(i)
+                for j in range(examples):
+                    # print(float(i)/numPictures)
+                    z[j][j] = float(i)/numPictures
+                feed_dict = {self.Z: z}
+                fake_input = self.sess.run([self.fake_input],
+                feed_dict=feed_dict)
+                mega = np.reshape(fake_input[0],[-1,self.inputSize[0],self.inputSize[1],self.inputSize[2]])
+
+                mega = [np.concatenate(mega[j:j+length],axis = 1) for j in range(0,examples,length)]
+                mega = np.concatenate(mega[0:height],axis =0)
+                # print(fake_input[0][0].shape)
+                # print(len(self.imageBuffer[0]))
+                # print(np.reshape(fake_input[0][0],[self.inputSize[0],self.inputSize[1],self.inputSize[2]]).shape)
+                # [self.imageBuffer[j].append(np.reshape(fake_input[0][j],[self.inputSize[0],self.inputSize[1],self.inputSize[2]])) for j in range(self.Zsize/sizeDiff)]
+                # self.imageBuffer2.append(mega)
+                writer.append_data(mega)
+
+            for i in range(numPictures,-numPictures,-1):
+                print(i)
+                for j in range(examples):
+                    z[j][j] = float(i)/numPictures
+                feed_dict = {self.Z: z}
+                fake_input = self.sess.run([self.fake_input],
+                feed_dict=feed_dict)
+                mega = np.reshape(fake_input[0],[-1,self.inputSize[0],self.inputSize[1],self.inputSize[2]])
+
+                mega = [np.concatenate(mega[j:j+length],axis = 1) for j in range(0,examples,length)]
+                mega = np.concatenate(mega[0:height],axis =0)
+                # print(fake_input[0][0].shape)
+                # print(len(self.imageBuffer[0]))
+                # print(np.reshape(fake_input[0][0],[self.inputSize[0],self.inputSize[1],self.inputSize[2]]).shape)
+                # [self.imageBuffer[j].append(np.reshape(fake_input[0][j],[self.inputSize[0],self.inputSize[1],self.inputSize[2]])) for j in range(self.Zsize/sizeDiff)]
+                # self.imageBuffer2.append(mega)
+                writer.append_data(mega)
                     # self.imageBuffer = []
         # for j in range(self.Zsize/sizeDiff):
             # print(self.imageBuffer[j])
             # print(len(self.imageBuffer[j]))
             # saveMovie.writeMovie(self.imageFilePath+str(j)+".gif",self.imageBuffer[j])
-        saveMovie.writeMovie(self.imageFilePath,self.imageBuffer2)
+        # saveMovie.writeMovie(self.imageFilePath,self.imageBuffer2)
 
 
 if __name__ == "__main__":
 
     myDiscriminator = GAN(inputSize = inputSize,convolutions = convolutions, fullyconnected = fullyconnected, output = 1, fileName = model_filepath,restore = restore, classes = classes)
-    myDiscriminator.train(100000, batch_size)
+    myDiscriminator.train(iterations, batch_size)
     #myDiscriminator.iterateOverVariables(40)
